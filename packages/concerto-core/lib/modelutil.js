@@ -58,6 +58,22 @@ const reservedProperties = [
     ...privateReservedProperties
 ];
 
+const MAP_KEYS = [
+    'StringMapKeyType',
+    'DateTimeMapKeyType',
+    'ObjectMapKeyType',
+];
+
+const MAP_VALUES = [
+    'BooleanMapValueType',
+    'DateTimeMapValueType',
+    'StringMapValueType',
+    'IntegerMapValueType',
+    'LongMapValueType',
+    'DoubleMapValueType',
+    'ObjectMapValueType'
+];
+
 /**
  * Internal Model Utility Class
  * <p><a href="./diagrams-private/modelutil.svg"><img src="./diagrams-private/modelutil.svg" style="height:100%;"/></a></p>
@@ -66,6 +82,40 @@ const reservedProperties = [
  * @memberof module:concerto-core
  */
 class ModelUtil {
+    /**
+     * Resolves the fully-qualified model name for a JSON object.
+     * @param {string} clazz the type name (FQN or short)
+     * @param {*} property a Property (which could be a Field or Relationship)
+     * @returns {string} the fully qualified name of the object
+     * @throws {Error} if a short type name has not been imported
+     */
+    static qualifyTypeName(clazz, property) {
+        const ns = ModelUtil.getNamespace(clazz);
+        if (ns.length > 0) {
+            return clazz; // already FQN
+        }
+        else {
+            // a short name, we use the namespace from the type of the property
+            const fqn = property.getFullyQualifiedTypeName();
+            return ModelUtil.getFullyQualifiedName(ModelUtil.getNamespace(fqn), clazz);
+        }
+    }
+
+    /**
+     * Resolves the fully-qualified model name for a JSON object.
+     * @param {*} obj an object with an optional $class
+     * @param {*} property a Property (which could be a Field or Relationship)
+     * @returns {string} the fully qualified name of the object, based on its explicit $class
+     * or a $class inferred from the model
+     */
+    static resolveFullyQualifiedTypeName(obj, property) {
+        if (obj.$class) {
+            return ModelUtil.qualifyTypeName(obj.$class, property);
+        }
+        else {
+            return property.getFullyQualifiedTypeName();
+        }
+    }
     /**
      * Returns everything after the last dot, if present, of the source string
      * @param {string} fqn - the source string
@@ -117,17 +167,17 @@ class ModelUtil {
      * @returns {ParseNamespaceResult} the result of parsing
      */
     static parseNamespace(ns) {
-        if(!ns) {
+        if (!ns) {
             throw new Error('Namespace is null or undefined.');
         }
 
         const parts = ns.split('@');
-        if(parts.length > 2) {
+        if (parts.length > 2) {
             throw new Error(`Invalid namespace ${ns}`);
         }
 
-        if(parts.length === 2) {
-            if(!semver.valid(parts[1])) {
+        if (parts.length === 2) {
+            if (!semver.valid(parts[1])) {
                 throw new Error(`Invalid namespace ${ns}`);
             }
         }
@@ -264,7 +314,7 @@ class ModelUtil {
      * @returns {string} the fully qualified name minus the namespace version
      */
     static removeNamespaceVersionFromFullyQualifiedName(fqn) {
-        if(ModelUtil.isPrimitiveType(fqn)) {
+        if (ModelUtil.isPrimitiveType(fqn)) {
             return fqn;
         }
         const ns = ModelUtil.getNamespace(fqn);
@@ -302,11 +352,8 @@ class ModelUtil {
      * @return {boolean} true if the Key is a valid Map Key
     */
     static isValidMapKey(key) {
-        return [
-            `${MetaModelNamespace}.StringMapKeyType`,
-            `${MetaModelNamespace}.DateTimeMapKeyType`,
-            `${MetaModelNamespace}.ObjectMapKeyType`,
-        ].includes(key.$class);
+        const shortName = ModelUtil.getShortName(key.$class);
+        return MAP_KEYS.includes(shortName);
     }
 
     /**
@@ -316,8 +363,8 @@ class ModelUtil {
      * @return {boolean} true if the Key is a valid Map Key Scalar type
     */
     static isValidMapKeyScalar(decl) {
-        return (decl?.isScalarDeclaration?.() && decl?.ast.$class === `${MetaModelNamespace}.StringScalar`)  ||
-        (decl?.isScalarDeclaration?.() && decl?.ast.$class === `${MetaModelNamespace}.DateTimeScalar`);
+        return (decl?.isScalarDeclaration?.() && decl?.ast.$class === `${MetaModelNamespace}.StringScalar`) ||
+            (decl?.isScalarDeclaration?.() && decl?.ast.$class === `${MetaModelNamespace}.DateTimeScalar`);
     }
 
     /**
@@ -327,15 +374,8 @@ class ModelUtil {
      * @return {boolean} true if the Value is a valid Map Value
      */
     static isValidMapValue(value) {
-        return [
-            `${MetaModelNamespace}.BooleanMapValueType`,
-            `${MetaModelNamespace}.DateTimeMapValueType`,
-            `${MetaModelNamespace}.StringMapValueType`,
-            `${MetaModelNamespace}.IntegerMapValueType`,
-            `${MetaModelNamespace}.LongMapValueType`,
-            `${MetaModelNamespace}.DoubleMapValueType`,
-            `${MetaModelNamespace}.ObjectMapValueType`
-        ].includes(value.$class);
+        const shortName = ModelUtil.getShortName(value.$class);
+        return MAP_VALUES.includes(shortName);
     }
 }
 

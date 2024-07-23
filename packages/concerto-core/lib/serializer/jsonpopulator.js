@@ -266,13 +266,7 @@ class JSONPopulator {
         let result = null;
 
         if(!field.isPrimitive?.() && !field.isTypeEnum?.()) {
-            let typeName = jsonItem.$class;
-            if(!typeName) {
-                // If the type name is not specified in the data, then use the
-                // type name from the model. This will only happen in the case of
-                // a sub resource inside another resource.
-                typeName = field.getFullyQualifiedTypeName();
-            }
+            const typeName = ModelUtil.resolveFullyQualifiedTypeName(jsonItem, field);
 
             // This throws if the type does not exist.
             const declaration = parameters.modelManager.getType(typeName);
@@ -410,13 +404,8 @@ class JSONPopulator {
                     if (!this.acceptResourcesForRelationships) {
                         throw new Error('Invalid JSON data. Found a value that is not a string: ' + jsonObj + ' for relationship ' + relationshipDeclaration);
                     }
-
-                    // this isn't a relationship, but it might be an object!
-                    if(!jsonItem.$class) {
-                        throw new Error('Invalid JSON data. Does not contain a $class type identifier: ' + jsonItem + ' for relationship ' + relationshipDeclaration );
-                    }
-
-                    const classDeclaration = parameters.modelManager.getType(jsonItem.$class);
+                    const typeName = ModelUtil.resolveFullyQualifiedTypeName(jsonItem, relationshipDeclaration);
+                    const classDeclaration = parameters.modelManager.getType(typeName);
 
                     // create a new instance, using the identifier field name as the ID.
                     let subResource = parameters.factory.newResource(classDeclaration.getNamespace(),
@@ -436,11 +425,7 @@ class JSONPopulator {
                     throw new Error('Invalid JSON data. Found a value that is not a string: ' + jsonObj + ' for relationship ' + relationshipDeclaration);
                 }
 
-                // this isn't a relationship, but it might be an object!
-                if(!jsonObj.$class) {
-                    throw new Error('Invalid JSON data. Does not contain a $class type identifier: ' + jsonObj + ' for relationship ' + relationshipDeclaration );
-                }
-                const classDeclaration = parameters.modelManager.getType(jsonObj.$class);
+                const classDeclaration = parameters.modelManager.getType(ModelUtil.resolveFullyQualifiedTypeName(jsonObj, relationshipDeclaration));
 
                 // create a new instance, using the identifier field name as the ID.
                 let subResource = parameters.factory.newResource(classDeclaration.getNamespace(),

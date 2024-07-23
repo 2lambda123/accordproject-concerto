@@ -33,6 +33,19 @@ const Globalize = require('../globalize');
 const Decorated = require('./decorated');
 const { Warning, ErrorCodes } = require('@accordproject/concerto-util');
 
+const CONCEPT_STEREOTYPES = {
+    'Asset': AssetDeclaration,
+    'Transaction': TransactionDeclaration,
+    'Event': EventDeclaration,
+    'Participant': ParticipantDeclaration
+};
+const DECLARATIONS = {
+    'EnumDeclaration' : EnumDeclaration,
+    'MapDeclaration' : MapDeclaration,
+    'ConceptDeclaration': ConceptDeclaration
+};
+const SCALARS = ['BooleanScalar', 'IntegerScalar', 'LongScalar', 'DoubleScalar', 'StringScalar', 'DateTimeScalar'];
+
 // Types needed for TypeScript generation.
 /* eslint-disable no-unused-vars */
 /* istanbul ignore next */
@@ -708,6 +721,15 @@ class ModelFile extends Decorated {
     }
 
     /**
+     * Populates from a Resource instance, created from the metamodel AST
+     * @param {object} resource - the Resource obtained from the parser
+     * @private
+    */
+    fromResource(resource) {
+        console.log(resource.getFullyQualifiedType());
+    }
+
+    /**
      * Populate from an AST
      * @param {object} ast - the AST obtained from the parser
      * @private
@@ -743,6 +765,8 @@ class ModelFile extends Decorated {
             this.enforceImportVersioning(imp);
             switch(imp.$class) {
             case `${MetaModelNamespace}.ImportAll`:
+            case 'ImportAll':
+
                 if (this.getModelManager().isStrict()){
                     throw new Error('Wilcard Imports are not permitted in strict mode.');
                 }
@@ -755,6 +779,10 @@ class ModelFile extends Decorated {
                 this.importWildcardNamespaces.push(imp.namespace);
                 break;
             case `${MetaModelNamespace}.ImportTypes`:
+            case 'ImportTypes':
+                imp.types.forEach( type => {
+                    this.importShortNames.set(type, `${imp.namespace}.${type}`);
+                });
                 if (this.getModelManager().isAliasedTypeEnabled()) {
                     const aliasedTypes = new Map();
                     if (imp.aliasedTypes) {
@@ -802,65 +830,26 @@ class ModelFile extends Decorated {
         for(let n=0; n < ast.declarations.length; n++) {
             // Make sure to clone since we may add super type
             let thing = Object.assign({}, ast.declarations[n]);
+            // we use short class names as the fully-qualified name may have been removed if we are 'inferClass' mode
+            const shortName = ModelUtil.getShortName(thing.$class);
+            const conceptStereoType = Object.keys(CONCEPT_STEREOTYPES).find(k => `${k}Declaration` === shortName);
+            const declaration = conceptStereoType ? undefined : Object.keys(DECLARATIONS).find(k => k === shortName);
+            const scalar = (conceptStereoType || declaration) ? undefined : SCALARS.includes(shortName);
 
-            if(thing.$class === `${MetaModelNamespace}.AssetDeclaration`) {
-                // Default super type for asset
+            if(conceptStereoType) {
                 if (!thing.superType) {
                     thing.superType = {
                         $class: `${MetaModelNamespace}.TypeIdentified`,
-                        name: 'Asset',
+                        name: conceptStereoType,
                     };
                 }
-                this.declarations.push( new AssetDeclaration(this, thing) );
+                this.declarations.push(new CONCEPT_STEREOTYPES[conceptStereoType](this, thing) );
             }
-            else if(thing.$class === `${MetaModelNamespace}.TransactionDeclaration`) {
-                // Default super type for transaction
-                if (!thing.superType) {
-                    thing.superType = {
-                        $class: `${MetaModelNamespace}.TypeIdentified`,
-                        name: 'Transaction',
-                    };
-                }
-                this.declarations.push( new TransactionDeclaration(this, thing) );
+            else if(declaration) {
+                this.declarations.push( new DECLARATIONS[declaration](this, thing) );
             }
-            else if(thing.$class === `${MetaModelNamespace}.EventDeclaration`) {
-                // Default super type for event
-                if (!thing.superType) {
-                    thing.superType = {
-                        $class: `${MetaModelNamespace}.TypeIdentified`,
-                        name: 'Event',
-                    };
-                }
-                this.declarations.push( new EventDeclaration(this, thing) );
-            }
-            else if(thing.$class === `${MetaModelNamespace}.ParticipantDeclaration`) {
-                // Default super type for participant
-                if (!thing.superType) {
-                    thing.superType = {
-                        $class: `${MetaModelNamespace}.TypeIdentified`,
-                        name: 'Participant',
-                    };
-                }
-                this.declarations.push( new ParticipantDeclaration(this, thing) );
-            }
-            else if(thing.$class === `${MetaModelNamespace}.EnumDeclaration`) {
-                this.declarations.push( new EnumDeclaration(this, thing) );
-            }
-            else if(thing.$class === `${MetaModelNamespace}.MapDeclaration`) {
-                this.declarations.push( new MapDeclaration(this, thing) );
-            }
-            else if(thing.$class === `${MetaModelNamespace}.ConceptDeclaration`) {
-                this.declarations.push( new ConceptDeclaration(this, thing) );
-            }
-            else if([
-                `${MetaModelNamespace}.BooleanScalar`,
-                `${MetaModelNamespace}.IntegerScalar`,
-                `${MetaModelNamespace}.LongScalar`,
-                `${MetaModelNamespace}.DoubleScalar`,
-                `${MetaModelNamespace}.StringScalar`,
-                `${MetaModelNamespace}.DateTimeScalar`,
-            ].includes(thing.$class)) {
-                this.declarations.push( new ScalarDeclaration(this, thing) );
+            else if(scalar) {
+                this.declarations.push(new ScalarDeclaration(this, thing) );
             }
             else {
                 let formatter = Globalize('en').messageFormatter('modelfile-constructor-unrecmodelelem');
