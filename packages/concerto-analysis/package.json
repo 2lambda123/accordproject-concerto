@@ -4,11 +4,12 @@
     "description": "Analysis of Concerto model files",
     "homepage": "https://github.com/accordproject/concerto",
     "engines": {
-        "node": ">=14",
+        "node": ">=16",
         "npm": ">=6"
     },
-    "main": "dist/index.js",
-    "typings": "dist/index.d.ts",
+    "type": "module",
+    "exports": "./dist/index.js",
+    "types": "./dist/index.d.ts",
     "scripts": {
         "clean": "rimraf dist",
         "prebuild": "npm-run-all clean",
